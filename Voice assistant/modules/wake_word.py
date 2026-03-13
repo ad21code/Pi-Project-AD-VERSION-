@@ -136,6 +136,7 @@ class WakeWordDetector:
                     
                     # Skip detection while paused
                     if self._paused:
+                        time.sleep(0.01)
                         continue
                     
                     # Check for wake word

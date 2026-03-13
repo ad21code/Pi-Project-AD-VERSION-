@@ -265,16 +265,17 @@ def test_intent_handler():
         ]
 
         all_ok = True
+        failed_cases = []
         for text, expected in cases:
             actual, _ = handler.detect_intent(text)
             if actual != expected:
                 all_ok = False
-                print(f"    ✗ '{text}' → {actual.value} (expected {expected.value})")
+                failed_cases.append(f"'{text}' → {actual.value} (expected {expected.value})")
 
         if all_ok:
             test_pass("Intent handler", f"{len(cases)} test cases correct")
         else:
-            test_fail("Intent handler", "Some intents mismatched")
+            test_fail("Intent handler", "; ".join(failed_cases))
     except Exception as e:
         test_fail("Intent handler", str(e))
 
