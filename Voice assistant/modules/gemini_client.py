@@ -93,6 +93,32 @@ class GeminiClient:
             print(f"Rate limited. Waiting {wait_time:.1f}s...")
             time.sleep(wait_time)
     
+    def _build_generation_config(self) -> 'types.GenerateContentConfig':
+        """Build the generation configuration for API calls."""
+        return types.GenerateContentConfig(
+            max_output_tokens=self.max_tokens,
+            temperature=self.temperature,
+            system_instruction=self.system_prompt,
+            safety_settings=[
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HARASSMENT",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HATE_SPEECH",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+            ],
+        )
+    
     def generate(self, prompt: str) -> str:
         """
         Generate a response synchronously.
@@ -121,29 +147,7 @@ class GeminiClient:
             response = self._client.models.generate_content(
                 model=self.model_name,
                 contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                    system_instruction=self.system_prompt,
-                    safety_settings=[
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                    ],
-                ),
+                config=self._build_generation_config(),
             )
             
             # Extract text
@@ -200,29 +204,7 @@ class GeminiClient:
             response = await self._client.aio.models.generate_content(
                 model=self.model_name,
                 contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                    system_instruction=self.system_prompt,
-                    safety_settings=[
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                    ],
-                ),
+                config=self._build_generation_config(),
             )
             
             result = response.text.strip()

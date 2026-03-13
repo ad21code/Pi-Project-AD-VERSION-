@@ -394,7 +394,11 @@ class BuddyAssistant:
             pass
         
         print("👋 Goodbye!")
-        # Force-exit to avoid PortAudio segfault during interpreter shutdown
+        # Force-exit to prevent PortAudio segfault during interpreter shutdown.
+        # The segfault occurs when Python's garbage collector destroys PyAudio
+        # objects after PortAudio has already been terminated — a known PyAudio
+        # issue with no pure-Python fix.  All streams and PyAudio instances are
+        # cleanly released above, so os._exit is safe here.
         os._exit(0)
 
 
