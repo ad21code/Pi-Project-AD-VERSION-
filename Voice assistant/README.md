@@ -143,7 +143,7 @@ async def stream_speech(text):
 ## Project Structure
 
 ```
-alexa/
+Voice assistant/
 ├── .env                    # API keys (never commit!)
 ├── .env.example            # Template for .env
 ├── .gitignore              # Git ignore rules
