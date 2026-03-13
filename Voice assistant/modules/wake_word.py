@@ -4,6 +4,7 @@ BUDDY Voice Assistant - Wake Word Detection
 Efficient wake word detection optimized for Raspberry Pi.
 Uses openWakeWord for open-source detection.
 """
+from __future__ import annotations
 
 import time
 import threading

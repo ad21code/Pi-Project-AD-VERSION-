@@ -4,6 +4,7 @@ BUDDY Voice Assistant - Speech Recognition
 Efficient speech-to-text using faster-whisper.
 Optimized for Raspberry Pi with INT8 quantization.
 """
+from __future__ import annotations
 
 import time
 import io

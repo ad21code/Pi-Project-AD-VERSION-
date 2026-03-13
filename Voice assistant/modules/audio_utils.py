@@ -4,6 +4,7 @@ BUDDY Voice Assistant - Audio Utilities
 Handles audio recording and playback optimized for Raspberry Pi.
 Uses PyAudio for cross-platform compatibility.
 """
+from __future__ import annotations
 
 import wave
 import struct
