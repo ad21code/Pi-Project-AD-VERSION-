@@ -71,21 +71,35 @@ class BuddyAssistant:
     
     def _print_banner(self):
         """Print startup banner."""
-        banner = """
-╔══════════════════════════════════════════════════════════╗
-║                                                          ║
-║   ██████╗ ██╗   ██╗██████╗ ██████╗ ██╗   ██╗            ║
-║   ██╔══██╗██║   ██║██╔══██╗██╔══██╗╚██╗ ██╔╝            ║
-║   ██████╔╝██║   ██║██║  ██║██║  ██║ ╚████╔╝             ║
-║   ██╔══██╗██║   ██║██║  ██║██║  ██║  ╚██╔╝              ║
-║   ██████╔╝╚██████╔╝██████╔╝██████╔╝   ██║               ║
-║   ╚═════╝  ╚═════╝ ╚═════╝ ╚═════╝    ╚═╝               ║
-║                                                          ║
-║            Voice Assistant for Raspberry Pi              ║
-║                                                          ║
-╚══════════════════════════════════════════════════════════╝
-"""
-        print(banner, flush=True)
+        if RICH_AVAILABLE and console is not None:
+            banner_text = (
+                "██████╗ ██╗   ██╗██████╗ ██████╗ ██╗   ██╗\n"
+                "██╔══██╗██║   ██║██╔══██╗██╔══██╗╚██╗ ██╔╝\n"
+                "██████╔╝██║   ██║██║  ██║██║  ██║ ╚████╔╝ \n"
+                "██╔══██╗██║   ██║██║  ██║██║  ██║  ╚██╔╝  \n"
+                "██████╔╝╚██████╔╝██████╔╝██████╔╝   ██║   \n"
+                "╚═════╝  ╚═════╝ ╚═════╝ ╚═════╝    ╚═╝   "
+            )
+            console.print(
+                Panel(
+                    banner_text + "\n\n   Voice Assistant for Raspberry Pi",
+                    style="bold cyan",
+                    expand=False,
+                ),
+                justify="center",
+            )
+        else:
+            banner = (
+                "\n"
+                " ____  _   _ ____  ______   __\n"
+                "| __ )| | | |  _ \\|  _ \\ \\ / /\n"
+                "|  _ \\| | | | | | | | | \\ V /\n"
+                "| |_) | |_| | |_| | |_| || |\n"
+                "|____/ \\___/|____/|____/ |_|\n"
+                "\n"
+                "    Voice Assistant for Raspberry Pi\n"
+            )
+            print(banner, flush=True)
         sys.stdout.flush()
     
     def _init_modules(self):

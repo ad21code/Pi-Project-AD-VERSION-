@@ -4,6 +4,7 @@ BUDDY Voice Assistant - Wake Word Detection
 Efficient wake word detection optimized for Raspberry Pi.
 Uses openWakeWord for open-source detection.
 """
+from __future__ import annotations
 
 import time
 import threading
@@ -62,12 +63,18 @@ class WakeWordDetector:
         
         # Detection state
         self._is_listening = False
+        self._paused = False  # Pause detection without killing the thread
         self._detection_callback: Optional[Callable] = None
         self._listen_thread: Optional[threading.Thread] = None
         
-        # For fallback detection (simple energy-based)
-        self._energy_threshold = 2000
+        # For fallback detection (energy-based with safeguards)
+        self._energy_threshold = 5000
         self._energy_buffer = []
+        self._warmup_frames = 0
+        self._warmup_required = 30  # Collect baseline before detecting
+        self._consecutive_spikes = 0
+        self._consecutive_required = 3  # Require sustained energy, not a single spike
+        self._last_trigger_time = 0.0  # Timestamp-based cooldown
     
     @property
     def pyaudio(self) -> pyaudio.PyAudio:
@@ -124,8 +131,13 @@ class WakeWordDetector:
             
             while self._is_listening:
                 try:
-                    # Read audio chunk
+                    # Read audio chunk (always read to avoid buffer overflow)
                     audio_data = self._stream.read(self.chunk_size, exception_on_overflow=False)
+                    
+                    # Skip detection while paused
+                    if self._paused:
+                        time.sleep(0.01)
+                        continue
                     
                     # Check for wake word
                     if self._detect_wake_word(audio_data):
@@ -181,35 +193,63 @@ class WakeWordDetector:
         """
         Fallback wake word detection using audio energy.
         This is NOT recommended for production - use openWakeWord or Porcupine.
+        
+        Safeguards:
+        - Requires a warmup period to establish baseline energy levels
+        - Requires multiple consecutive high-energy frames (sustained speech)
+        - Uses a high energy threshold and multiplier to avoid ambient noise triggers
         """
         # Convert to samples
         samples = struct.unpack(f'{len(audio_data)//2}h', audio_data)
         energy = sum(abs(s) for s in samples) / len(samples)
         
-        # Simple energy spike detection
+        # Track energy buffer for baseline
         self._energy_buffer.append(energy)
-        if len(self._energy_buffer) > 10:
+        if len(self._energy_buffer) > 30:
             self._energy_buffer.pop(0)
+        
+        # Warmup phase: collect baseline energy before allowing detection
+        self._warmup_frames += 1
+        if self._warmup_frames < self._warmup_required:
+            return False
+        
+        # Cooldown: prevent multiple triggers in quick succession
+        if time.time() - self._last_trigger_time < 2.0:
+            return False
         
         avg_energy = sum(self._energy_buffer) / len(self._energy_buffer)
         
-        # Detect sudden increase in energy (potential wake word)
-        if energy > avg_energy * 3 and energy > self._energy_threshold:
-            # Add cooldown to prevent multiple triggers
-            time.sleep(1.0)
+        # Require energy to be significantly above both the threshold and average
+        is_spike = energy > avg_energy * 5 and energy > self._energy_threshold
+        
+        if is_spike:
+            self._consecutive_spikes += 1
+        else:
+            self._consecutive_spikes = 0
+        
+        # Only trigger after multiple consecutive high-energy frames (sustained speech)
+        if self._consecutive_spikes >= self._consecutive_required:
+            self._consecutive_spikes = 0
+            self._last_trigger_time = time.time()
             return True
         
         return False
     
     def pause_listening(self):
-        """Temporarily pause wake word detection."""
-        self._is_listening = False
+        """Temporarily pause wake word detection without killing the thread."""
+        self._paused = True
     
     def resume_listening(self):
         """Resume wake word detection."""
         if self._detection_callback is not None:
-            self._is_listening = True
+            # Reset detection state to avoid stale data triggering false positives
+            self._energy_buffer = []
+            self._consecutive_spikes = 0
+            self._warmup_frames = 0
+            self._last_trigger_time = 0.0
+            self._paused = False
             if self._listen_thread is None or not self._listen_thread.is_alive():
+                self._is_listening = True
                 self._listen_thread = threading.Thread(target=self._listen_loop, daemon=True)
                 self._listen_thread.start()
     
