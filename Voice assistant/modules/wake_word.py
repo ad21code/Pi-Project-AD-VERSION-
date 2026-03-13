@@ -48,14 +48,15 @@ class WakeWordDetector:
         self.model: Optional[OWWModel] = None
         if OPENWAKEWORD_AVAILABLE:
             try:
-                # Load pre-trained wake word models
-                self.model = OWWModel(
-                    wakeword_models=["hey_jarvis"],  # Use built-in model as base
-                    inference_framework="onnx"
-                )
+                model_kwargs = {"inference_framework": "onnx"}
+                # Use custom model path if configured, otherwise use defaults
+                if config.wake_word.model_path:
+                    model_kwargs["wakeword_models"] = [config.wake_word.model_path]
+                self.model = OWWModel(**model_kwargs)
                 print(f"✓ Wake word model loaded")
             except Exception as e:
-                print(f"Warning: Could not load wake word model: {e}")
+                self.model = None
+                print(f"⚠️  Wake word model unavailable, using energy-based fallback detection")
         
         # PyAudio
         self._pyaudio: Optional[pyaudio.PyAudio] = None
@@ -258,7 +259,10 @@ class WakeWordDetector:
         self.stop_listening()
         
         if self._pyaudio is not None:
-            self._pyaudio.terminate()
+            try:
+                self._pyaudio.terminate()
+            except Exception:
+                pass
             self._pyaudio = None
 
 

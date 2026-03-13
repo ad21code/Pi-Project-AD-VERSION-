@@ -14,6 +14,27 @@ Author: AI Assistant
 Optimized for: Raspberry Pi 4 Model B (4GB RAM)
 """
 
+# --- Suppress noisy native library warnings before any other imports ---
+import os
+os.environ.setdefault('ORT_LOG_LEVEL', '3')          # ONNX Runtime: errors only
+os.environ.setdefault('JACK_NO_START_SERVER', '1')    # JACK: don't attempt auto-start
+
+# Suppress ALSA error messages on Linux (they are harmless but very noisy)
+try:
+    import ctypes
+    _ERROR_HANDLER_FUNC = ctypes.CFUNCTYPE(
+        None, ctypes.c_char_p, ctypes.c_int,
+        ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
+    )
+    def _alsa_error_handler(filename, line, function, err, fmt):
+        pass
+    _c_alsa_handler = _ERROR_HANDLER_FUNC(_alsa_error_handler)
+    _asound = ctypes.cdll.LoadLibrary('libasound.so.2')
+    _asound.snd_lib_error_set_handler(_c_alsa_handler)
+except (OSError, AttributeError):
+    pass  # Not on Linux or ALSA not available
+# -----------------------------------------------------------------------
+
 import sys
 import time
 import signal
@@ -351,6 +372,13 @@ class BuddyAssistant:
         
         try:
             self.wake_word.stop_listening()
+        except Exception:
+            pass
+        
+        # Allow background threads a moment to finish
+        time.sleep(0.2)
+        
+        try:
             self.wake_word.cleanup()
         except Exception:
             pass
@@ -366,6 +394,8 @@ class BuddyAssistant:
             pass
         
         print("👋 Goodbye!")
+        # Force-exit to avoid PortAudio segfault during interpreter shutdown
+        os._exit(0)
 
 
 def main():
