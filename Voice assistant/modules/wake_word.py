@@ -73,6 +73,7 @@ class WakeWordDetector:
         self._warmup_required = 30  # Collect baseline before detecting
         self._consecutive_spikes = 0
         self._consecutive_required = 3  # Require sustained energy, not a single spike
+        self._last_trigger_time = 0.0  # Timestamp-based cooldown
     
     @property
     def pyaudio(self) -> pyaudio.PyAudio:
@@ -210,6 +211,10 @@ class WakeWordDetector:
         if self._warmup_frames < self._warmup_required:
             return False
         
+        # Cooldown: prevent multiple triggers in quick succession
+        if time.time() - self._last_trigger_time < 2.0:
+            return False
+        
         avg_energy = sum(self._energy_buffer) / len(self._energy_buffer)
         
         # Require energy to be significantly above both the threshold and average
@@ -223,8 +228,7 @@ class WakeWordDetector:
         # Only trigger after multiple consecutive high-energy frames (sustained speech)
         if self._consecutive_spikes >= self._consecutive_required:
             self._consecutive_spikes = 0
-            # Add cooldown to prevent multiple triggers
-            time.sleep(1.0)
+            self._last_trigger_time = time.time()
             return True
         
         return False
@@ -240,6 +244,7 @@ class WakeWordDetector:
             self._energy_buffer = []
             self._consecutive_spikes = 0
             self._warmup_frames = 0
+            self._last_trigger_time = 0.0
             self._paused = False
             if self._listen_thread is None or not self._listen_thread.is_alive():
                 self._is_listening = True
