@@ -258,10 +258,16 @@ class AudioRecorder:
     def cleanup(self):
         """Clean up PyAudio resources."""
         if self._stream is not None:
-            self._stream.close()
+            try:
+                self._stream.close()
+            except Exception:
+                pass
             self._stream = None
         if self._pyaudio is not None:
-            self._pyaudio.terminate()
+            try:
+                self._pyaudio.terminate()
+            except Exception:
+                pass
             self._pyaudio = None
 
 
@@ -375,7 +381,10 @@ class AudioPlayer:
     def cleanup(self):
         """Clean up resources."""
         if self._pyaudio is not None:
-            self._pyaudio.terminate()
+            try:
+                self._pyaudio.terminate()
+            except Exception:
+                pass
             self._pyaudio = None
 
 

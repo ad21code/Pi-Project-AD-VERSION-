@@ -11,11 +11,12 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
-    print("Warning: google-generativeai not installed")
+    print("Warning: google-genai not installed")
 
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
@@ -54,8 +55,7 @@ class GeminiClient:
         self._history: List[Dict[str, str]] = []
         
         # Initialize client
-        self._model = None
-        self._chat = None
+        self._client = None
         
         if self.api_key:
             self._initialize()
@@ -65,30 +65,9 @@ class GeminiClient:
     def _initialize(self):
         """Initialize the Gemini client."""
         if not GENAI_AVAILABLE:
-            raise RuntimeError("google-generativeai is not installed")
+            raise RuntimeError("google-genai is not installed")
         
-        genai.configure(api_key=self.api_key)
-        
-        # Configure generation settings
-        generation_config = genai.GenerationConfig(
-            max_output_tokens=self.max_tokens,
-            temperature=self.temperature,
-        )
-        
-        # Configure safety settings (allow informative content)
-        safety_settings = [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
-        ]
-        
-        self._model = genai.GenerativeModel(
-            model_name=self.model_name,
-            generation_config=generation_config,
-            safety_settings=safety_settings,
-            system_instruction=self.system_prompt
-        )
+        self._client = genai.Client(api_key=self.api_key)
         
         print(f"✓ Gemini client initialized ({self.model_name})")
     
@@ -114,6 +93,32 @@ class GeminiClient:
             print(f"Rate limited. Waiting {wait_time:.1f}s...")
             time.sleep(wait_time)
     
+    def _build_generation_config(self) -> 'types.GenerateContentConfig':
+        """Build the generation configuration for API calls."""
+        return types.GenerateContentConfig(
+            max_output_tokens=self.max_tokens,
+            temperature=self.temperature,
+            system_instruction=self.system_prompt,
+            safety_settings=[
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HARASSMENT",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HATE_SPEECH",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                    threshold="BLOCK_ONLY_HIGH",
+                ),
+            ],
+        )
+    
     def generate(self, prompt: str) -> str:
         """
         Generate a response synchronously.
@@ -127,7 +132,7 @@ class GeminiClient:
         if not self.api_key:
             return "I'm sorry, but I can't access the internet right now. My API key is not configured."
         
-        if self._model is None:
+        if self._client is None:
             self._initialize()
         
         self._wait_for_rate_limit()
@@ -139,7 +144,11 @@ class GeminiClient:
             full_prompt = self._build_prompt(prompt)
             
             # Generate response
-            response = self._model.generate_content(full_prompt)
+            response = self._client.models.generate_content(
+                model=self.model_name,
+                contents=full_prompt,
+                config=self._build_generation_config(),
+            )
             
             # Extract text
             result = response.text.strip()
@@ -179,9 +188,48 @@ class GeminiClient:
         Returns:
             Generated response text
         """
-        # Run synchronous code in thread pool
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.generate, prompt)
+        if not self.api_key:
+            return "I'm sorry, but I can't access the internet right now. My API key is not configured."
+        
+        if self._client is None:
+            self._initialize()
+        
+        self._wait_for_rate_limit()
+        
+        try:
+            start_time = time.time()
+            
+            full_prompt = self._build_prompt(prompt)
+            
+            response = await self._client.aio.models.generate_content(
+                model=self.model_name,
+                contents=full_prompt,
+                config=self._build_generation_config(),
+            )
+            
+            result = response.text.strip()
+            result = self._format_for_speech(result)
+            
+            if self.keep_history:
+                self._history.append({"role": "user", "content": prompt})
+                self._history.append({"role": "assistant", "content": result})
+            
+            elapsed = time.time() - start_time
+            if config.assistant.debug:
+                print(f"[Gemini] Response in {elapsed:.2f}s")
+            
+            return result
+        
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Gemini API error: {error_msg}")
+            
+            if "quota" in error_msg.lower():
+                return "I've reached my API quota limit. Please try again later."
+            elif "invalid" in error_msg.lower():
+                return "There's an issue with my API configuration. Please check the API key."
+            else:
+                return "I'm having trouble connecting to the internet right now. Please try again."
     
     def _build_prompt(self, prompt: str) -> str:
         """Build the full prompt with conversation history."""
